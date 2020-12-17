@@ -1,0 +1,420 @@
+---
+title: "Proyecto Klustera"
+author: "Rodrigo González Ramírez"
+date: "12/15/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library (readr) #llamar a la librería readr
+library (tidyverse) #llamar a la librería tidyverse
+library(gmodels) # Herramientas para evaluar árbol de decisión
+library('C50') # Genera el árbol de decisión
+
+
+#Leer datos
+#Base de datos de 249556 registros
+dir1 <- "~/Proyecto_datascience"
+Klustera <- read.csv(paste(dir1, "e.csv", sep="/"), stringsAsFactors = FALSE)
+
+
+```
+
+# Proyecto Klustera
+El proyecto se deriva de  un correo electrónico enviado a un candidato a Data Scientist llamado 
+Alfredo que inició un proceso de contratación en Klustera.
+
+En dicho correo se le informa al candidtao que Klustera esta interesado en  continuar el proceso con el. 
+Para lo cual se le adjuntan dos sets de datos para continuar con el proceso.
+Los dos sets son datos reales que fueron captados con algunos de los sensores de la tecnología klustera. 
+Los análisis que se le solicita realizar son los siguientes:
+Consiste en dos bases de datos llamadas "e" y "v".
+Ambas bases cuentan con las siguientes variables:
+
+* device_mac.
+* branch_office.
+* month_tz.
+* day_tz.
+* day_of_week_tz.
+* hour_tz.
+* visitor
+* tiempodeses
+* device_mac: se refiere al identificador único de un celular, cada célula asumimos 
+es una persona
+* branch_office: es la sucursal de cliente<br>
+* visitor:es una variable indicadora donde true significa que es visitante del lugar 
+y false que no.
+* tiempodeses: es el tiempo de la sesión (en segundos).
+
+¿En qué consiste el proyecto?:
+
+* Utilizando la base llamada "e" realizar un análisis descriptivo y exploratorio 
+de la base de datos, encuentrar y gráficar cómo se distribuyen los visitantes, 
+horas, días, etc... El análisis es libre.
+* Algo muy importante del dataset "e" es encontrar qué es lo que hace a un visitante
+y con ese hallazgo analizar el dataset "v".
+* El dataset "v" es idéntico al "e", solo que no tiene etiquetado si el usuario es 
+visitante o no. Tu labor es añadirle la etiqueta de visitante (true/false). 
+Se le solicita también  envíar el csv con esta etiqueta.
+* De igual manera envíar los scripts que utilizaste para el análisis, comentando 
+las acciones que realizaste para llegar al resultado.
+** Simularemos ser Alfredo para dar respuesta a los requerimientos solicitados por Klustera.**
+
+
+## Análisis exploratorio de la base de datos "e.csv"
+Se realizó un primer acercamiento a la base de datos "e.csv" a partir de una serie 
+de preguntas tratando de detectar las variables que serían de utilidad para inferir 
+los valores de la variable  "visitante". 
+
+Preguntas:
+
+1. ¿Cúal es la sucursal que recibe más conexiones?.
+
+2. ¿Qué día de la semana tenemos más visitantes?.
+
+3. ¿Cuál es el tiempo promedio de conexión de un visitante?.
+
+4. ¿Cuantas personas por mes han realizado visitas?.
+
+5. ¿A qué hora se registran más visitantes?.
+
+
+## Proceso de obtención de las respuestas de las 5 preguntas
+A contuniación se describe el proceso para la obteción de los resultados 
+de cada una de las preguntas realizadas.
+
+Inicialmete se asignaron los datos del archivo e.cvs a e_dataframe:
+
+
+```{r}
+e_dataframe <- read.csv("~/Proyecto_datascience/e.csv")
+```
+
+### Proceso para dar respuesta a la Pregunta 1: ¿Cúal es la sucursal que recibe más conexiones?
+1. Agrupar: branch_office. Se agrupan las observaciones por sucursal. 
+2. Colapsar: conteo de conexiones por sucursal. Se realiza el conteo de las conexiones 
+que registra cada sucursal. 
+3. La tabla resultante se registra en "conexiones".
+
+
+
+```{r}
+por_sucursal <- group_by(e_dataframe, branch_office)
+conexiones <- count(por_sucursal)
+```
+### Proceso para dar respuesta a la Pregunta 2: ¿Qué día de las semana tenemos mas visitantes?
+1. Filtrar: visitor = true. Se filtra la variable visitor, para quedarnos solo con las observaciones relativas a visitantes. 
+2. Agrupar: por day_of_week. Los resultados del primer filtro se agrupan por día de la semana. 
+3. Colapsar: Suma de visitantes por día de la semana. Se realiza la suma del número de visitantes de cada día de la semana. 
+4. La tabla resultante se registra en "respuesta2".
+
+
+
+```{r}
+visitantes <- filter(e_dataframe,visitor=="true")
+dia <- group_by(visitantes,day_of_week_tz)
+respuesta2 <- count(dia)
+```
+### Proceso para dar respuesta a la Pregunta 3: ¿Cuál es el tiempo promedio de conexión de un visitante?
+1. Filtrar: visitor = true.
+2. Colapsar: Promedio de tiempo de conexión. Una vez que se tiene el promedio se divide entre 60 ya que el tiempo viene en segundos. 
+
+
+
+```{r}
+visitantes <- filter(e_dataframe,visitor=="true")
+respuesta3 <- mean(visitantes$tiempodeses)/60
+```
+### Proceso para dar respuesta a la Pregunta 4: ¿Cuantas personas por mes han realizado visitas?
+1. Filtrar: visitors = true. Se filtra la variable visitor, para quedarnos solo con las observaciones relativa a visitantes. 
+2. Agrupar: por mes.Se realiza la agrupación de visitantes por mes. 
+3. Colapsar: conteo. Se realiza el conteo de los visitantes por mes. 
+
+
+
+```{r}
+visitantes <- filter(e_dataframe,visitor=="true")
+mes <- group_by(visitantes,month_tz)
+respuesta4 <- count(mes)
+```
+### Proceso para dar respuesta a la Pregunta 5: ¿A qué hora se registran más visitantes?
+1. Agrupar: Visitantes y no visitantes (visitor).
+2. Filtrar: Obtener los registros por hora (hour_tz).
+3. Colapsar: Contar cuantos registros hay en cada hora (count).
+4. Se compara cuantos registros de visitantes hay en cada hora.
+
+
+
+```{r}
+visitantes <- filter(e_dataframe,visitor=="true")
+hora <- group_by(visitantes,hour_tz)
+respuesta5 <- count(hora)
+```
+
+### Graficas resultantes del análisis exploratorio
+Se tomó la respuesta de cada una de las preguntas realizadas y se precedió a graficar
+los resultados obtenidos.
+La gráfica 1 presenta los resultados de la primera pregunta, donde se observa que
+la sucursal 1 fue la que recibió más visitantes durante el perido analizado, seguido 
+de la sucursal tres y en tercer lugar la dos. 
+
+
+
+```{r, echo=FALSE}
+#ESTABLECER EL DIRECTORIO DE SALIDA DE LAS GRÁFICAS
+dir <- "//Users/usuario/Proyecto_datascience/graficas/" # Gráficas
+
+# GRAFICA RESPUESTA 1
+gr <- ggplot(conexiones, aes(x= branch_office, y= n)) +
+  geom_col()
+
+gr <- ggplot(conexiones, aes(x= branch_office, y= n)) +
+  geom_col(fill = 'blue3') +
+  labs(title="Grafica 1. Número de conexiones por sucursal", x="Número de sucursal", y="Número de conexiones", size = 5) +
+  geom_text(aes(label=n,vjust = -.5))
+  #Guardar las gráfica
+  ggsave(paste(dir, "1.png", sep="/"), plot=gr, width=12, height=12)
+
+ plot(gr)
+
+``` 
+
+
+
+
+
+La gráfica 2 presenta los resultados de la segunda  pregunta, donde se observa que día 
+de la semana fue en el que se recibió más visitantes durante el perido analizado, 
+teniendo en general que los día martes, miercoles y jueves son en los que se registraron más visitantes.
+
+
+
+Para el caso de la pregunta tres, relativa al timpo promedio de conexión, se realizó el cálculo resultado un promedio de conexión de 115 minutos. 
+
+
+
+```{r, echo=FALSE}
+# GRAFICA RESPUESTA 2
+gr <- ggplot(respuesta2, aes(x= day_of_week_tz, y= n)) +
+  geom_col()
+
+gr <- ggplot(respuesta2, aes(x= day_of_week_tz, y= n)) +
+  geom_col(fill = 'green4') +
+  labs(title="Grafica 2. Visitantes por día de semana", x="Día de la semana", y="Número de visitantes", size = 5) +
+  geom_text(aes(label=n,vjust = -.5))
+  #Guardar las gráficas
+  ggsave(paste(dir, "2.png", sep="/"), plot=gr, width=12, height=12)
+  
+plot(gr)
+```
+
+La gráfica 3 presenta los resultados de la cuarta  pregunta, donde se observa en que 
+mes se recibió mas visitantes, de los dos meses que registra la base de datos, observándose  que es en el mes 11 (noviembre) en el que se tuvo más visitas.
+
+
+
+
+```{r, echo=FALSE}
+gr <- ggplot(respuesta4, aes(x= month_tz, y= n)) +
+  geom_col()
+gr <- ggplot(respuesta4, aes(x= month_tz, y= n)) +
+  geom_col(fill = 'red4') +
+  labs(title="Grafica 3. Visitantes por mes", x="Mes", y="Número de visitantes", size =5) +
+  geom_text(aes(label=n,vjust = -.5))
+ #Guardar las gráficas
+  ggsave(paste(dir, "4.png", sep="/"), plot=gr, width=12, height=12)
+
+  plot(gr)  
+```
+
+La gráfica 4 presenta los resultados de la quinta pregunta, donde se observa en qué horas del  día se recibien mas visitantes,  observándose que es de las 13 a las 18 horas en el periodo de tiempo en  el que se registra un pico en el número de visitantes, mientras que de las 0 a ñas 6 horas se  registran los niveles más bajos.  
+
+
+
+
+```{r, echo=FALSE}
+# GRAFICA RESPUESTA 5
+gr <- ggplot(respuesta5, aes(x= hour_tz, y= n)) +
+  geom_col()
+gr <- ggplot(respuesta5, aes(x= hour_tz, y= n)) +
+  geom_col(fill = 'yellow3') +
+  labs(title="Grafica 4. Visitantes por hora del día", x="Hora", y="Número de visitantes", size =5) +
+  geom_text(aes(label=n,vjust = -.5))
+  #Guardar las gráficas
+  ggsave(paste(dir, "5.png", sep="/"), plot=gr, width=12, height=12)
+  
+  plot(gr)
+```
+
+
+### Generción del Modelo (Ajustes a la base de datos e)
+Se inició el proceso de ajuste de la base de datos "e" para la creación del modelo
+que sirvió de base para generar la columna "visitor" en la base de datos "v".
+Los ajustes realizados a la base "e" fueron la eliminación de las dos primeras columnas 
+"X" relativa a un consecutivo, y "device_mac", relativa a el dispositivo que se conecta.
+La eliminación de estas columnas fue porque no son varialbes relevantes y pueden ser factores que sesguen los resultados del modelo. 
+
+También se convirtió la variable "day_of_week_tz" a un valor numérico, ya que 
+el modelo solo recibe variables numericas para su proceso y esta se encontraba con tipo caracter. 
+
+Por ultimo se convirtió la varialbe "visitor" a factor, ya que para fines del modelo 
+es necesario que la variable resultante a evaluar se categórica. 
+(la base "e" se guardó en "Klustera")
+
+
+
+```{r}
+#Eiminando las primera dos columnas de la base Klustera (base e)
+Klustera <- Klustera[-1]
+KlusteraX <- Klustera[-1]
+
+#convertir día de la semana a numérico
+levels <- c('Monday', 'Tuesday', 'Wednesday','Thursday','Friday','Saturday','Sunday')
+KlusteraX$day_of_week_tz <- match(KlusteraX$day_of_week_tz, levels)
+
+# recodificamos la columna visitor como factor
+# los algoritmos requieren que el valor "objetivo" (columna de respuestas) sea un factor 
+KlusteraX$visitor <- factor(KlusteraX$visitor, levels = c("true", "false"), 
+labels = c("Visitante", "NoVisitante"))
+
+```
+
+### Generción del Modelo (Entrenamiento)
+Para realizar el entrenamiento del modelo tomamos el 80% de los registros de la  base "e"
+para trabajar el modelo con ese segmento y dejamos el 20% de los registros para hacer 
+pruebas con el modelo resultante.
+Generamos los dataset de Klustera_train y Klustera_test sin la variable de visitor y 
+Klustera_train_labels y Klustera_test_laves, que solo contienen la variable visitor.
+Estas sirven para alimentar al modelo y para hacer la prueba del mismo.
+
+
+
+```{r}
+nfilas <- nrow(KlusteraX) * .80
+set.seed(123)
+index <- sample(1:nrow(KlusteraX), nfilas) # tomando solo el 80% de la base
+#restando la columna de visitor
+KlusteraX_menos_visitor<- select(KlusteraX, - visitor)
+Klustera_train <- KlusteraX_menos_visitor[index,] # Obtener solo las muestras sin visitor
+Klustera_test <- KlusteraX_menos_visitor[-index,] # Todo menos las muestras sin visitor
+# Guardamos la clasificación de cada uno (Visitante o NoVisitante) de la primera columna
+Klustera_train_labels <- KlusteraX[index,6]
+Klustera_test_labels <- KlusteraX[-index,6]
+```
+### Generción del Modelo 
+
+Despues de hacer los ajustes necesarios en la base de datos y generar los datasets para 
+alimentar el modelo, se procedió a su generación y revisión de su estructura:
+
+```{r}
+Klustera_model <- C5.0(Klustera_train, Klustera_train_labels)
+Klustera_model
+summary(Klustera_model) 
+```
+
+### Resultados del Modelo
+
+El resultado del modelo arroja que se tienen 22 ramas y que el principal atributo 
+utilizado para es la variable "tiempodeses" 100%, seguido de sucursal ("branch_office") 
+4.47%, hour_tz con 3.84%, day_tz 2.45%, month_tz 1.15% y day_of_week_tz con 1.09%. 
+
+### Evaluación del Modelo
+Una vez generado el modelo se procecidió a su evaluación, para lo cual se generó una 
+predicción de la variable "visitor" en la tabal Klustera_test, que contiene el 20% de la base inicial. 
+Esta predicción se cruzó con los valores reales de la tabla para ver los porcentajes 
+de acierto y error del modelo con los datos reales. 
+
+
+
+```{r}
+# Evaluamos el modelo
+# Creamos un vector con las predicciones sobre nuestos datos de pruebas
+Klustera_pred <- predict(Klustera_model, Klustera_test)
+#Se hace el cruce de la predicción vs los datos reales
+CrossTable(Klustera_test_labels, Klustera_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE)
+```
+
+### Análisis de la tabla resultante del modelo
+La tabla resultante de la evaluación del modelo señala que el modelo clasificó como
+no visitantes a 1,169 personas que en realidad si fueron visitantes, y clasificó como 
+visitantes a 651 personas que en realidad no fueron visitantes. 
+
+
+
+### Generación de segundo Modelo
+Para tener elementos de contraste se relaizó un segundo modelo con 10 árboles adicionales.
+
+
+
+```{r}
+#Generamos 10 árboles adicionales y nos selecciona el mejor
+Klustera_boost10_model <- C5.0(Klustera_train, Klustera_train_labels,trials = 10)
+Klustera_boost10_model
+summary(Klustera_boost10_model)
+```
+
+### Resultado del segundo Modelo  
+El atributo mas utilizado por el modelo  es la variable "tiempodeses" con el 100%, 
+seguido de sucursal ("branch_office") con 12.7%, hour_tz 12.23%, day_of_week_tz 7.50%,
+day_tz con 3.70% y month_tz con 2.12%.
+
+### Evaluación del segundo Modelo
+Una vez generado el segundo modelo se procecidió a su evaluación, para lo cual se generó
+una  predicción de la variable "visitor" en la tabal Klustera_test, que contiene el 20% de la base inicial. 
+Esta predicción se cruzó con los valores reales de la tabla para ver los porcentajes 
+de acierto y error del modelo con los datos reales. 
+
+
+
+```{r}
+Klustera_boost_pred10 <- predict(Klustera_boost10_model, Klustera_test)
+
+CrossTable(Klustera_test_labels, Klustera_boost_pred10,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual', 'predicción'))
+```
+### Análisis de la tabla resultante del segundo Modelo
+
+La tabla resultante de la evaluación del segundo modelo señala que el modelo clasificó 
+como no visitantes a 1,118 personas que en realidad si fueron visitantes, y clasificó 
+como visitantes a 904 personas que en realidad no fueron visitantes. 
+
+### Comparativo de tablas resultantes de ambos Modelos:
+El comparativo de los dos modelos arroja que el modelo 1 registra 651 falso positivos miesntras que el modelo 2 registra 904 falsos positivos. En el caso de los falsos negativos, el modelo 1 registra 1,169, y el modelo 2 registra 1,118. 
+
+
+Se observa que el primer modelo registra menos falsos positivos que el segundo, mientras que en el segundo modelo registra menos falso negativos que el primero. Como el objetivo del modelo es identificar con mayor certeza a los visitantes, nos quedaremos con el modelo dos, que regisrta mayor certeza en los registros de visitantes verdaderos.
+
+
+| Real|Modelo 1|||Modelo 2 |
+|:-----------|---------:|------------:|-----------:|-----------:|
+| |Visitante |No visitante|Visitante|No visitante|
+| Visitante |15681|1169|15732|1118|
+|No visitante|651|32411|904|32158|
+|Column total|16332|33580|16636|332276|
+
+### Etiquetado del dataset v:
+Para el etiquetado de la base v.csv, traemos el archivo y lo asignamos a V_dataframe
+hacemos la adecuación sobre la variable day_of_week_tz, para que sea numérica. Posterior mete realizamos al predicción sobre la base V_dataframe utilizando el modelo 2, y asignamos el resultado en el data frame Klustera_pred_V. Por ultimo juntamos el vector colos resultados ala base V_dataframe y exportamos el archivo en formato csv. 
+
+
+
+```{r}
+V_dataframe <- read.csv("~/Proyecto_datascience/v.csv")
+
+#convertir día de la semana a numérico
+levels <- c('Monday', 'Tuesday', 'Wednesday','Thursday','Friday','Saturday','Sunday')
+V_dataframe$day_of_week_tz <- match(V_dataframe$day_of_week_tz, levels)
+
+# Creamos un vector con las predicciones sobre nuestos datos de pruebas
+Klustera_pred_V <- predict(Klustera_boost10_model, V_dataframe)
+
+#Unimos la tabla de visitor resultante con el resto de los datos de v.
+V_dataframe<-V_dataframe %>%
+  mutate(visitor=Klustera_pred_V)
+
+#Guarda el dataset combinado 
+write.csv(V_dataframe,"//Users/usuario/Proyecto_datascience/V_visitor.csv") 
+```
